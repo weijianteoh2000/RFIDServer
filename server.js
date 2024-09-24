@@ -14,10 +14,10 @@ app.use(express.urlencoded({ extended: true }));
 const logicContractAddress = '0xD01f74BBB6d9c22dd1a75578F40EaD24EF4C3945';
 const proxyAdminAddress = '0xc4CE25Ec54c1dBED2255a262f0D09cA565D11D54';
 const RFIDStatuses = {
-    Pending: 0,
-    Available: 1,
-    Unavailable: 2,
-    Deleted: 3
+  Pending: 0,
+  Available: 1,
+  Unavailable: 2,
+  Deleted: 3
 };
 const TransparentProxyContract = require(path.join(__dirname, '', 'transparentProxy.json'));
 const { abi: TransparentProxyABI, bytecode: TransparentProxyBytecode } = TransparentProxyContract;
@@ -39,53 +39,46 @@ const provider = new ethers.JsonRpcProvider(PROVIDER_URL);
 const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
 
 async function getSigner() {
-    return wallet; // The wallet itself acts as the signer
+  return wallet; // The wallet itself acts as the signer
 }
 
 // Deploy Contract Function
 const deployContract = async (itemId, itemName, itemLocation, createdBy, newStatus) => {
+  const signer = await getSigner();
+  const factory = new ethers.ContractFactory(contractV1ABI, contractV1Bytecode, signer);
+  const statusValue = RFIDStatuses[newStatus];
+
+  if (statusValue === undefined) {
+    console.error('Invalid RFID status:', newStatus);
+    return;
+  }
+
   try {
-    const signer = await getSigner();
-    const statusValue = RFIDStatuses[newStatus];
-
-    if (statusValue === undefined) {
-      console.error('Invalid RFID status:', newStatus);
-      throw new Error('Invalid RFID status');
-    }
-
-    // ABI of the logic contract for encoding the initialization data
-    const logicContract = new ethers.Contract(logicContractAddress, contractV1ABI, signer);
-    const initData = logicContract.interface.encodeFunctionData('initialize', [itemId, itemName, itemLocation, createdBy, statusValue]);
-    console.log('initData:', initData);
-
-    // Deploy the TransparentUpgradeableProxy
-    const TransparentProxyFactory = new ethers.ContractFactory(TransparentProxyABI, TransparentProxyBytecode, signer);
-
-    const proxy = await TransparentProxyFactory.deploy(logicContractAddress, proxyAdminAddress, initData);
-    await proxy.waitForDeployment();
-    const address = proxy.address;
-    console.log(`Proxy deployed at: ${address}`);
-    console.log(`Transaction Hash: ${proxy.deploymentTransaction()}`);
-
+    const contract = await factory.deploy(itemId, itemName, itemLocation, createdBy, statusValue);
+    await contract.waitForDeployment();
+    const transactionHash = contract.deploymentTransaction().hash;
+    console.log(`Transaction details: ${transactionHash}`);
+    const address = await contract.getAddress();
+    console.log(`Contract deployed at address: ${address}`);
     return {
-      logicContractAddress: logicContractAddress,
       contractAddress: address,
+      transactionId: transactionHash
     };
   } catch (error) {
-    console.error('Error deploying contract:', error);
+    console.error('Deployment failed:', error);
     throw error;
   }
 };
 
 // Update Location Function
 const updateLocation = async (contractAddress, newLocation, updatedBy) => {
+  const signer = await getSigner();
+  const contract = new ethers.Contract(contractAddress, contractV1ABI, signer);
+
   try {
-    const signer = await getSigner();
-    const contract = new ethers.Contract(contractAddress, contractV1ABI, signer);
-    const txResponse = await contract.updateLocation(newLocation, updatedBy);
+    const txResponse = await contract.updateLocation(newLocation, updatedBy.getAddress());
     await txResponse.wait();
     console.log('Location updated');
-    return { message: 'Location updated successfully' };
   } catch (error) {
     console.error('Update location failed:', error);
     throw error;
@@ -96,7 +89,7 @@ const updateLocation = async (contractAddress, newLocation, updatedBy) => {
 const changeRFIDStatus = async (contractAddress, newStatus, updatedBy) => {
   if (!contractAddress || !newStatus) {
     console.error('Invalid or missing parameters');
-    throw new Error('Invalid or missing parameters');
+    return Promise.reject('Invalid or missing parameters');
   }
 
   try {
@@ -106,16 +99,16 @@ const changeRFIDStatus = async (contractAddress, newStatus, updatedBy) => {
 
     if (statusValue === undefined) {
       console.error('Invalid RFID status:', newStatus);
-      throw new Error('Invalid RFID status');
+      return Promise.reject('Invalid RFID status');
     }
 
-    const txResponse = await contract.changeRFIDStatus(statusValue, updatedBy);
+    const txResponse = await contract.changeRFIDStatus(statusValue, updatedBy.getAddress());
     await txResponse.wait();
     console.log('RFID status updated');
-    return { message: 'RFID status updated successfully' };
+    return Promise.resolve(); // Explicitly return a resolved promise
   } catch (error) {
     console.error('RFID status update failed:', error);
-    throw error;
+    return Promise.reject(error); // Explicitly return a rejected promise
   }
 };
 
@@ -132,14 +125,21 @@ app.get('/hw', (req, res) => {
 // Define the /create route for deploying a contract
 app.post('/create', async (req, res) => {
   // const { itemId, itemName, itemLocation, createdBy, newStatus } = req.body;
+  console.log(req.body);
+  const { itemId } = req.body;
+  // itemId = "123456";
+  itemName = "Test Item";
+  itemLocation = "Test Location";
+  createdBy = "Test User";
+  newStatus = "Unavailable";
 
   // if (!itemId || !itemName || !itemLocation || !createdBy || !newStatus) {
   //   return res.status(400).json({ error: 'Missing required fields' });
   // }
   console.log('Creating contract with:', itemId, itemName, itemLocation, createdBy, newStatus);
   try {
-    //const result = await deployContract(itemId, itemName, itemLocation, createdBy, newStatus);
-    res.status(200).json(result);
+    const result = await deployContract(itemId, itemName, itemLocation, createdBy, newStatus);
+    res.status(200).json({ message: result });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -147,7 +147,11 @@ app.post('/create', async (req, res) => {
 
 // Define the /update-location route for updating the location
 app.post('/update-location', async (req, res) => {
-  const { contractAddress, newLocation, updatedBy } = req.body;
+  const { contractAddress, newLocation } = req.body;
+
+  // const contractAddress = "0xc3BB9911e90BEF2a7502e20938bf440435fe6aD5";
+  // const newLocation = "Room B";
+  const updatedBy = await getSigner();
 
   if (!contractAddress || !newLocation || !updatedBy) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -155,15 +159,19 @@ app.post('/update-location', async (req, res) => {
 
   try {
     const result = await updateLocation(contractAddress, newLocation, updatedBy);
-    res.status(200).json(result);
+    res.status(200).json({ message: 'Location updated' });
   } catch (error) {
+    console.log(error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // Define the /change-status route for changing the RFID status
 app.post('/change-status', async (req, res) => {
-  const { contractAddress, newStatus, updatedBy } = req.body;
+  const { contractAddress, newStatus } = req.body;
+  // const contractAddress = "0xc3BB9911e90BEF2a7502e20938bf440435fe6aD5";
+  // const newStatus = "Available";
+  const updatedBy = await getSigner();
 
   if (!contractAddress || !newStatus || !updatedBy) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -171,7 +179,7 @@ app.post('/change-status', async (req, res) => {
 
   try {
     const result = await changeRFIDStatus(contractAddress, newStatus, updatedBy);
-    res.status(200).json(result);
+    res.status(200).json({ message: 'RFID status updated' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
