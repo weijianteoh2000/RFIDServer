@@ -27,7 +27,7 @@ const RFIDV1 = require(path.join(__dirname, '', 'itemContractV1.json'));
 const { abi: contractV1ABI, bytecode: contractV1Bytecode } = RFIDV1;
 
 // Provider URL pointing to a local Ethereum node
-const PROVIDER_URL = 'http://localhost:8545';
+const PROVIDER_URL = 'http://4.194.242.43:8545/';
 
 // Replace this private key with the one you want to use
 const PRIVATE_KEY = 'ba87d09cd4c9b24fb087376bf40fc46f3fbc139e6cd6c066740787f519e57d29';
