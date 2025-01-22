@@ -1,3 +1,4 @@
+require('dotenv').config();  // Load the .env file
 const admin = require('firebase-admin');
 
 // Initialize Firebase Admin SDK with your service account
