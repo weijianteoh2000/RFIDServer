@@ -1,5 +1,6 @@
 var express = require('express');
 const { ethers } = require('ethers');
+const moment = require('moment');
 const path = require('path');
 var router = express.Router();
 
@@ -109,6 +110,22 @@ const changeRFIDStatus = async (contractAddress, newStatus, updatedBy) => {
 // Define the /hi route
 router.get('/hi', (req, res) => {
   res.json({ message: 'hi' });
+});
+
+router.post('/get-date', (req, res) => {
+  // Read the includeTime query parameter (default to 'false' if not provided)
+  const { isIncludeTime } = req.body;
+  const includeTime = isIncludeTime === 'true';
+  // Get the current date and time
+  const currentDate = moment();
+
+  // If includeTime is false, return date in "d-m-yyyy" format
+  if (!includeTime) {
+    res.json({time: currentDate.format('D-M-YYYY')});
+  } else {
+    // If includeTime is true, return date in "m/d/yyyy, h:mm:ss A/P" format
+    res.json({time: currentDate.format('M/D/YYYY, h:mm:ss A')});
+  }
 });
 
 // Define the /hw route
