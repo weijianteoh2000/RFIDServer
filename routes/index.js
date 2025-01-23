@@ -1,6 +1,6 @@
 var express = require('express');
 const { ethers } = require('ethers');
-const moment = require('moment');
+const moment = require('moment-timezone');
 const path = require('path');
 var router = express.Router();
 
@@ -117,7 +117,7 @@ router.post('/get-date', (req, res) => {
   const { isIncludeTime } = req.body;
   const includeTime = isIncludeTime === 'true';
   // Get the current date and time
-  const currentDate = moment();
+  const currentDate = moment().tz('Asia/Kuala_Lumpur');
 
   // If includeTime is false, return date in "d-m-yyyy" format
   if (!includeTime) {
