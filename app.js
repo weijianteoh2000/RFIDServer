@@ -59,8 +59,8 @@ function runAtMidnight() {
 
   // Update /Dashboard/DailyMovement with Room A and Room B set to 0
   ref.child('DailyMovement').update({
-    'Room A': 0,
-    'Room B': 0
+    'RoomA': 0,
+    'RoomB': 0
   }, (error) => {
     if (error) {
       console.error('Failed to update DailyMovement:', error);
